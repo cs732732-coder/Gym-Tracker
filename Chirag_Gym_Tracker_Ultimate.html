@@ -1,0 +1,162 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chirag Gym Tracker Ultimate</title>
+<style>
+body{font-family:Arial;max-width:1200px;margin:auto;padding:15px;background:#111;color:#eee}
+input,select,button{padding:8px;margin:4px}
+table{border-collapse:collapse;width:100%}
+td,th{border:1px solid #444;padding:6px;text-align:center}
+.card{border:1px solid #444;border-radius:8px;padding:10px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<h1>🏋️ Chirag Gym Tracker Ultimate</h1>
+
+<div class="card">
+<label>Date</label><input type="date" id="date">
+<label>Body Weight (kg)</label><input id="bw" type="number" step="0.1">
+<label>Waist (cm)</label><input id="waist" type="number" step="0.1">
+</div>
+
+<div class="card">
+<label>Split Day</label>
+<select id="day" onchange="renderExercises()">
+<option value="">Select</option>
+<option>Chest + Shoulders</option>
+<option>Back</option>
+<option>Arms + Abs</option>
+<option>Legs</option>
+<option>Upper Light</option>
+<option>Lower Light</option>
+</select>
+</div>
+
+<div id="workout"></div>
+
+<button onclick="saveWorkout()">💾 Save Workout</button>
+<button onclick="showHistory()">📜 History</button>
+<button onclick="showStats()">📈 Stats</button>
+<button onclick="exportData()">⬇ Export Backup</button>
+
+<div id="output"></div>
+
+<script>
+const splits={
+"Chest + Shoulders":["Incline DB Press","Flat Bench","High-Low Cable Fly","Low-High Cable Fly","Incline Machine Press","Lateral Raise","Machine OHP"],
+"Back":["Bent Over Row","Chest Supported Row","Close Grip Row","One Arm Pulldown","Wide Lat Pulldown","Rear Delt Fly","Shrugs"],
+"Arms + Abs":["Preacher Curl","Incline Curl","Hammer Curl","Cable Curl","Pushdown","Overhead Extension","Skull Crusher","Single Arm Extension","Hanging Leg Raise","Cable Crunch"],
+"Legs":["Squat","RDL","Leg Press","Leg Extension","Seated Curl","Adductor","Abductor","Calves"],
+"Upper Light":["Machine Press","Lat Pulldown","Seated Row","Shoulder Press","Curl","Pushdown"],
+"Lower Light":["Leg Press","Leg Curl","Walking Lunge","Calves","Cardio"]
+};
+
+document.getElementById("date").valueAsDate=new Date();
+
+function renderExercises(){
+let day=document.getElementById("day").value;
+let ex=splits[day]||[];
+
+let history=JSON.parse(localStorage.getItem("gymHistory")||"[]");
+let latest={};
+history.forEach(h=>{
+ if(h.day===day){
+   h.entries.forEach(e=>latest[e.exercise]=e.summary);
+ }
+});
+
+let html='<div class="card"><table><tr><th>Exercise</th><th>S1 W</th><th>S1 R</th><th>S2 W</th><th>S2 R</th><th>S3 W</th><th>S3 R</th><th>Last</th></tr>';
+ex.forEach((e,i)=>{
+html+=`<tr>
+<td>${e}</td>
+<td><input id=w1_${i}></td>
+<td><input id=r1_${i}></td>
+<td><input id=w2_${i}></td>
+<td><input id=r2_${i}></td>
+<td><input id=w3_${i}></td>
+<td><input id=r3_${i}></td>
+<td>${latest[e]||'-'}</td>
+</tr>`;
+});
+html+='</table></div>';
+document.getElementById("workout").innerHTML=html;
+}
+
+function saveWorkout(){
+let day=document.getElementById("day").value;
+if(!day){alert("Select split day");return;}
+
+let entries=[];
+let prs=[];
+
+splits[day].forEach((e,i)=>{
+let w=parseFloat(document.getElementById("w1_"+i).value||0);
+let r=parseFloat(document.getElementById("r1_"+i).value||0);
+let est1rm=w*(1+r/30);
+
+entries.push({
+exercise:e,
+summary:`${document.getElementById('w1_'+i).value}x${document.getElementById('r1_'+i).value}, ${document.getElementById('w2_'+i).value}x${document.getElementById('r2_'+i).value}, ${document.getElementById('w3_'+i).value}x${document.getElementById('r3_'+i).value}`,
+oneRM:est1rm
+});
+
+prs.push(est1rm);
+});
+
+let history=JSON.parse(localStorage.getItem("gymHistory")||"[]");
+
+history.push({
+date:document.getElementById("date").value,
+bw:document.getElementById("bw").value,
+waist:document.getElementById("waist").value,
+day:day,
+entries:entries
+});
+
+localStorage.setItem("gymHistory",JSON.stringify(history));
+alert("Workout Saved!");
+}
+
+function showHistory(){
+let history=JSON.parse(localStorage.getItem("gymHistory")||"[]");
+let html="<div class='card'><h2>History</h2>";
+history.slice().reverse().forEach(h=>{
+html+=`<h4>${h.date} | ${h.day}</h4><p>BW:${h.bw} Waist:${h.waist}</p><ul>`;
+h.entries.forEach(e=>html+=`<li>${e.exercise}: ${e.summary}</li>`);
+html+="</ul><hr>";
+});
+html+="</div>";
+document.getElementById("output").innerHTML=html;
+}
+
+function showStats(){
+let history=JSON.parse(localStorage.getItem("gymHistory")||"[]");
+
+let sessions=history.length;
+let bw=history.map(x=>x.bw).filter(Boolean);
+let waist=history.map(x=>x.waist).filter(Boolean);
+
+let html="<div class='card'><h2>Stats</h2>";
+html+=`Total Sessions: ${sessions}<br>`;
+if(bw.length) html+=`Latest Weight: ${bw[bw.length-1]} kg<br>`;
+if(waist.length) html+=`Latest Waist: ${waist[waist.length-1]} cm<br>`;
+html+="</div>";
+
+document.getElementById("output").innerHTML=html;
+}
+
+function exportData(){
+let data=localStorage.getItem("gymHistory")||"[]";
+let blob=new Blob([data],{type:"application/json"});
+let a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="chirag_gym_backup.json";
+a.click();
+}
+</script>
+</body>
+</html>
